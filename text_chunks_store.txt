@@ -1,0 +1,487 @@
+
+const express = require("express")
+const cors = require('cors');
+
+
+
+const app = express();
+
+const mongoose = require("mongoose")
+const dotenv = require("dotenv")
+const helmet = require("helmet")
+const morgan = require("morgan")
+
+const userRoute = require("./routes/users")
+const authRoute = require("./routes/auth")
+const postRoute = require("./routes/posts")
+
+dotenv.config()
+
+
+
+main().catch(err => console.log(err));
+
+async function main() {
+  await mongoose.connect(process.env.MONGO_URL);
+  console.log("CONNECTED");
+}
+
+
+//MIDDLEWARE
+app.use(express.json())
+app.use(helmet())
+app.use(morgan("common"))
+app.use(cors());
+app.use("/api/users", userRoute);
+app.use("/api/auth", authRoute);
+app.use("/api/posts", postRoute);
+
+const corsOptions = {
+  origin: 'http://localhost:5173/',//(https://your-client-app.com)
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+
+app.listen(8800, ()=>{
+    console.log("server is running new");
+})
+    console.log("server is running new");
+})
+const mongoose = require("mongoose")
+
+
+const PostSchema = new mongoose.Schema({
+    userId:{
+        type:String,
+        required:true
+    },
+    desc:{
+        type:String,
+        max:500
+    },
+    img:{
+        type: String
+    },
+    likes:{
+        type:Array,
+        default:[]
+    }
+},
+{timestamps:true}
+)
+
+module.exports = mongoose.model("Post",PostSchema)
+
+
+const mongoose = require("mongoose")
+
+
+const UserSchema = new mongoose.Schema({
+    username:{
+        type : String,
+        required:true,
+        min:3,
+        max:20,
+        unique:true
+    },
+    email: {
+        type:String,
+        required:true,
+        max:50,
+        unique:true
+    },
+    password:{
+        type:String,
+        required:true,
+        min: 6
+    },
+    profilePicture:{
+        type:String,
+        default:""
+    },
+    
+    followers:{
+        type:Array,
+        default:[]
+    },
+    followings:{
+        type:Array,
+        default:[]
+    },
+    isAdmin:{
+        type:Boolean,
+        default:false,
+    },
+    desc:{
+        type:String,
+        max:50
+    },
+    city:{
+        type:String,
+        max:50
+    },
+    from:{
+        type:String,
+        max:50
+    },
+    realtionship:{
+        type:Number,
+        enum:[1,2,3]
+    }
+},
+{timestamps:true}
+)
+
+module.exports = mongoose.model("user",UserSchema)
+
+
+ule.exports = mongoose.model("user",UserSchema)
+
+
+const router = require("express").Router();
+const { json } = require("express");
+const User = require("../models/User")
+const bcrypt = require("bcrypt")
+
+
+router.post("/register", async (req,res)=>{
+    const {username,email,password} = req.body;
+    
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password,salt)
+       
+       
+        const newUser = new User({
+            username:username,
+            email:email,
+            password:hashedPassword
+        })
+        
+
+        const user = await newUser.save();
+        res.status(200).json(user);
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500)
+    }
+
+})
+
+
+//login
+router.post("/login", async (req,res)=>{
+   
+    try {
+        const user = await User.findOne({email:req.body.email});
+        !user && res.status(404).send("user not Found")
+    
+        const validPassword = await bcrypt.compare(req.body.password, user.password)
+        !validPassw
+    const validPassword = await bcrypt.compare(req.body.password, user.password)
+        !validPassword && res.status(400).send("incorrect password")
+    
+        
+        validPassword && res.status(200).json(user)
+    } catch (error) {
+        console.log(error);
+        res.status(500);
+    }
+    
+})
+module.exports = router;
+
+
+const router = require("express").Router();
+const Post = require("../models/Post")
+const User = require("../models/User")
+
+//create post
+router.post("/", async (req, res) => {
+    const newPost = new Post(req.body);
+    try {
+        const savedPost = await newPost.save()
+        res.status(200).json(savedPost)
+    }
+    catch (e) {
+        res.status(500).json(e)
+    }
+})
+
+//update
+router.put("/:id", async (req, res) => {
+   
+    try {
+        const post = await Post.findById(req.params.id);
+        if (post.userId == req.body.userId) {
+            await post.updateOne({$set:req.body})
+            res.status(200).json("the post has been updated")
+
+
+        }
+        else {
+            res.status(403).json("you can update only your post")
+        }
+    } catch (error) {
+        res.status(500).json(error)
+    }
+
+})
+
+//delet
+router.delete("/:id", async (req, res) => {
+   
+    try {
+        const post = await Post.findById(req.params.id);
+        if (post.userId == req.body.userId) {
+   
+  const post = await Post.findById(req.params.id);
+        if (post.userId == req.body.userId) {
+            await post.deleteOne()
+            res.status(200).json("the post has been deleted")            
+        }
+        else {
+            res.status(403).json("you can delete only your post")
+        }
+    } catch (error) {
+        res.status(500).json(error)
+    }
+
+})
+
+
+
+//like
+router.put("/:id/like", async (req,res)=>{
+    try {
+        const post = await Post.findById(req.params.id)
+        
+        if(!post.likes.includes(req.body.userId)){
+            await post.updateOne({$push: {likes: req.body.userId} });
+            res.status(200).json("The post has been liked")
+            console.log(post);
+            
+        }
+        else{
+            await post.updateOne({$pull:{likes :req.body.userId}})
+            res.status(200).json("The post has been disliked");
+
+        }
+
+
+    } catch (error) {
+        res.status(500).json(error);
+    }   
+})
+
+
+//get
+router.get("/:id", async 
+} catch (error) {
+        res.status(500).json(error);
+    }   
+})
+
+
+//get
+router.get("/:id", async (req,res)=>{
+    try{
+        const post = await Post.findById(req.params.id)
+        res.status(200).json(post);
+    }
+    catch{
+        res.status(500).json("post not found")
+    }
+})
+
+//timeline posts
+router.get("/timeline/all/:userId", async (req,res)=>{
+    try{
+        console.log(req.body);
+        
+        const currUser = await User.findById(req.params.userId);
+        
+        const userPosts = await Post.find({userId : currUser._id});
+        console.log("this works");
+        const friendPosts = await Promise.all(
+            currUser.followings.map((friendId)=>{
+                return Post.find({userId: friendId});
+            })
+        )
+        res.json(userPosts.concat(...friendPosts))
+        
+    }
+    catch (err){
+        res.status(500).json("err");
+    }
+})
+
+
+module.exports = router;
+
+
+exports = router;
+
+
+const { request } = require("express");
+const router = require("express").Router();
+const User = require("../models/User")
+const bcrypt = require("bcrypt")
+
+//update user
+router.put("/:id", async (req, res) => {
+
+   
+    if (req.body.userId === req.params.id || req.body.isAdmin) {
+        if (req.body.password) {
+            try {
+                const salt = await bcrypt.genSalt(10);
+                req.body.password = await bcrypt.hash(req.body.password, salt);
+
+            }
+            catch (e) {
+                console.log(e);
+                return res.status(500).json(e)
+            }
+        }
+
+        try {
+            const user = await User.findByIdAndUpdate(req.params.id, { $set: req.body })
+
+            res.status(200).json("ACcount has been updated")
+        } catch (error) {
+            res.status(400).json(error)
+        }
+    } else {
+        return res.status(403).json("you can update only your account")
+
+    }
+}
+)
+
+
+// delete user
+// route.delete()
+
+router.delete("/
+("you can update only your account")
+
+    }
+}
+)
+
+
+// delete user
+// route.delete()
+
+router.delete("/:id", async (req, res) => {
+    //console.log(req);
+    if (req.body.userId === req.params.id || req.body.isAdmin) {
+        console.log(req.params.id);
+        try {
+            await User.findByIdAndDelete(req.params.id)
+            res.status(200).json("ACcount has been deleted")
+
+        } catch (error) {
+            res.status(500).json(error)
+        }
+    } else {
+        return res.status(403).json("you can delete only your account")
+
+    }
+}
+)
+
+
+// //get a user
+// route.get()
+router.get("/:id", async (req, res) => {
+    //console.log(req);
+    try{
+        const user = await User.findById(req.params.id)
+        const {password, createdAt, updatedAt, ...other} = user._doc
+        
+        res.status(200).send(other)
+    }
+    catch(err){
+        console.log(err);
+        res.status(500).send("user Not found")
+
+    }
+}
+)
+
+
+// //follow a user
+// route.get()
+router.put("/:id/follow"
+(500).send("user Not found")
+
+    }
+}
+)
+
+
+// //follow a user
+// route.get()
+router.put("/:id/follow", async (req,res)=>{
+    if(req.body.userId !== req.params.id){
+        try {
+            const user = await User.findById(req.params.id)
+            const currUser = await User.findById(req.body.userId);
+            if(!user.followers.includes(req.body.userId)){
+                await user.updateOne({$push:{followers : req.body.userId}})
+                await currUser.updateOne({$push:{ followings:req.body.userId}})
+
+                res.status(200).json("user has been followed");
+            }else{
+                res.status(403).json("you already follow this user")
+            }
+        } catch (error) {
+            res.status(403).json("you already follow this user")
+        }
+
+    }
+    else {
+        res.status(403).json("can't follow yourself")
+    }
+    
+
+})
+
+
+//unfollow a user
+router.put("/:id/unfollow", async (req,res)=>{
+    if(req.body.userId !== req.params.id){
+        try {
+ 
+r.put("/:id/unfollow", async (req,res)=>{
+    if(req.body.userId !== req.params.id){
+        try {
+            const user = await User.findById(req.params.id)
+            const currUser = await User.findById(req.body.userId);
+            if(!currUser.followers.includes(req.body.userId)){
+                await user.updateOne({$pull:{followers : req.body.userId}})
+                await currUser.updateOne({$pull:{ followings:req.body.userId}})
+
+                res.status(200).json("user has been funollowed");
+            }else{
+                res.status(403).json("you don't follow this user");
+            }
+        } catch (error) {
+            res.status(403).json("you ")
+        }
+
+    }
+    else {
+        res.status(403).json("can't unfollow yourself")
+    }
+    
+
+})
+
+
+module.exports = router;
+
